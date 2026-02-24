@@ -78,26 +78,39 @@ function createVRButton(isSupported) {
   }
 }
 
-// Always add VR button, regardless of support
-if (navigator.xr) {
-  navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
-    console.log('VR supported:', supported);
+// VR functionality disabled for now — will be re-enabled later
+if (false) { // eslint-disable-line no-constant-condition
+  // Always add VR button, regardless of support
+  if (navigator.xr) {
+    navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+      console.log('VR supported:', supported);
 
-    let vrButton;
-    // Always use custom button to ensure audio init logic is handled correctly
-    vrButton = createVRButton(supported);
+      let vrButton;
+      // Always use custom button to ensure audio init logic is handled correctly
+      vrButton = createVRButton(supported);
 
-    const vrContainer = document.getElementById('vr-button-container');
-    console.log('VR container found:', vrContainer);
-    if (vrContainer) {
-      vrContainer.appendChild(vrButton);
-      console.log('VR button added');
-    } else {
-      document.body.insertBefore(vrButton, document.body.firstChild);
-    }
-  }).catch((err) => {
-    console.error('Error checking VR support:', err);
-    // Even if check fails, add a button
+      const vrContainer = document.getElementById('vr-button-container');
+      console.log('VR container found:', vrContainer);
+      if (vrContainer) {
+        vrContainer.appendChild(vrButton);
+        console.log('VR button added');
+      } else {
+        document.body.insertBefore(vrButton, document.body.firstChild);
+      }
+    }).catch((err) => {
+      console.error('Error checking VR support:', err);
+      // Even if check fails, add a button
+      const vrButton = createVRButton(false);
+      const vrContainer = document.getElementById('vr-button-container');
+      if (vrContainer) {
+        vrContainer.appendChild(vrButton);
+      } else {
+        document.body.insertBefore(vrButton, document.body.firstChild);
+      }
+    });
+  } else {
+    console.log('navigator.xr not available');
+    // No WebXR API, show informational button
     const vrButton = createVRButton(false);
     const vrContainer = document.getElementById('vr-button-container');
     if (vrContainer) {
@@ -105,25 +118,14 @@ if (navigator.xr) {
     } else {
       document.body.insertBefore(vrButton, document.body.firstChild);
     }
-  });
-} else {
-  console.log('navigator.xr not available');
-  // No WebXR API, show informational button
-  const vrButton = createVRButton(false);
-  const vrContainer = document.getElementById('vr-button-container');
-  if (vrContainer) {
-    vrContainer.appendChild(vrButton);
-  } else {
-    document.body.insertBefore(vrButton, document.body.firstChild);
   }
-}
+} // end VR disabled block
 
 // Controller setup
 function setupController(index) {
   const controller = renderer.xr.getController(index);
-  controller.addEventListener('selectstart', onVRSelectStart);
-  controller.addEventListener('selectend', onVRSelectEnd);
-  controller.addEventListener('select', onVRSelect);
+  controller.addEventListener('selectstart', handleVRInputStart);
+  controller.addEventListener('selectend', handleVRInputEnd);
   scene.add(controller);
   controllers[index] = controller;
 
@@ -175,12 +177,10 @@ const BUTTON_CLICK_COOLDOWN = 500; // ms to prevent double-clicks
 const hands = [];
 const handModels = [];
 
-// Hand tracking setup
+// Hand tracking setup (disabled — VR not active)
 let handModelFactory;
 if (typeof THREE.XRHandModelFactory !== 'undefined') {
   handModelFactory = new THREE.XRHandModelFactory();
-} else {
-  console.error('THREE.XRHandModelFactory is not defined. Hand tracking visualization will be disabled.');
 }
 
 // Configure factory to fetch profiles from CDN if needed (although unpkg script might handle default)
@@ -282,40 +282,45 @@ const wireframeMaterial = new THREE.LineBasicMaterial({ color: 0x00ff88, opacity
 const wireframeBox = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
 cubeGroup.add(wireframeBox);
 
-// Load the GLB model
-const loader = new THREE.GLTFLoader();
-loader.load('cube_transparent_artistic_reference.glb', function (gltf) {
-  loadedModel = gltf.scene;
+var SHOW_FRONT_BOTTOM_PANES = true;
+// Load the GLB model (only if GLTFLoader is available)
+if (typeof THREE.GLTFLoader !== 'undefined') {
+  const loader = new THREE.GLTFLoader();
+  loader.load('cube_transparent_artistic_reference.glb', function (gltf) {
+    loadedModel = gltf.scene;
 
-  // Scale and position the model
-  const box = new THREE.Box3().setFromObject(loadedModel);
-  const size = box.getSize(new THREE.Vector3());
-  const scale = cubeSize / Math.max(size.x, size.y, size.z);
-  loadedModel.scale.setScalar(scale);
+    // Scale and position the model
+    const box = new THREE.Box3().setFromObject(loadedModel);
+    const size = box.getSize(new THREE.Vector3());
+    const scale = cubeSize / Math.max(size.x, size.y, size.z);
+    loadedModel.scale.setScalar(scale);
 
-  // Center the model
-  const center = box.getCenter(new THREE.Vector3());
-  loadedModel.position.sub(center.multiplyScalar(scale));
+    // Center the model
+    const center = box.getCenter(new THREE.Vector3());
+    loadedModel.position.sub(center.multiplyScalar(scale));
 
-  // Make top and front faces more transparent for better visibility
-  loadedModel.traverse(function (child) {
-    if (child.isMesh) {
-      // Hide all faces by default
-      child.visible = false;
-    }
+    // Make top and front faces more transparent for better visibility
+    loadedModel.traverse(function (child) {
+      if (child.isMesh) {
+        // Hide all faces by default
+        child.visible = false;
+      }
+    });
+
+    cubeGroup.add(loadedModel);
+
+    // Create the three visible walls
+    createFace(new THREE.Vector3(-cubeSize / 2, 0, 0), new THREE.Vector3(0, -Math.PI / 2, 0), 0x00ff88, 'Brightness × Attack', new THREE.Vector3(-1, 0, 0));
+    createFace(new THREE.Vector3(0, -cubeSize / 2, 0), new THREE.Vector3(-Math.PI / 2, 0, 0), 0xff6b9d, 'Spectral Flux × Attack', new THREE.Vector3(0, -1, 0));
+    createFace(new THREE.Vector3(0, 0, -cubeSize / 2), new THREE.Vector3(0, Math.PI, 0), 0xc44569, 'Spectral Flux × Brightness', new THREE.Vector3(0, 0, -1));
+  }, undefined, function (error) {
+    console.error('Error loading GLB model:', error);
+    createFallbackCube();
   });
-
-  cubeGroup.add(loadedModel);
-
-  // Create the three visible walls
-  createFace(new THREE.Vector3(-cubeSize / 2, 0, 0), new THREE.Vector3(0, -Math.PI / 2, 0), 0x00ff88, 'Brightness × Attack', new THREE.Vector3(-1, 0, 0));
-  createFace(new THREE.Vector3(0, -cubeSize / 2, 0), new THREE.Vector3(-Math.PI / 2, 0, 0), 0xff6b9d, 'Spectral Flux × Attack', new THREE.Vector3(0, -1, 0));
-  createFace(new THREE.Vector3(0, 0, -cubeSize / 2), new THREE.Vector3(0, Math.PI, 0), 0xc44569, 'Spectral Flux × Brightness', new THREE.Vector3(0, 0, -1));
-}, undefined, function (error) {
-  console.error('Error loading GLB model:', error);
-  // Fallback to creating plane faces if model fails to load
+} else {
+  // No GLTFLoader — use fallback faces
   createFallbackCube();
-});
+}
 
 function createFallbackCube() {
   createFace(new THREE.Vector3(-cubeSize / 2, 0, 0), new THREE.Vector3(0, -Math.PI / 2, 0), 0x00ff88, 'Brightness × Attack', new THREE.Vector3(-1, 0, 0));
@@ -795,18 +800,38 @@ function initAudioSystem() {
   initSpectrogram();
 }
 
-// Small-room convolution reverb (procedural IR for natural short space)
-function createSmallRoomIR(seconds = 0.25, decay = 3.0) {
+// Natural small-hall convolution reverb with early reflections
+function createSmallRoomIR(seconds = 0.6, decay = 2.0) {
   const context = Tone.getContext().rawContext;
   const rate = context.sampleRate;
   const length = Math.max(1, Math.floor(rate * seconds));
   const impulse = context.createBuffer(2, length, rate);
+
+  // Early reflection delays (simulating wall bounces in a small room)
+  const earlyReflections = [
+    { time: 0.007, gain: 0.6 },
+    { time: 0.011, gain: 0.45 },
+    { time: 0.017, gain: 0.35 },
+    { time: 0.023, gain: 0.25 },
+    { time: 0.031, gain: 0.18 },
+    { time: 0.041, gain: 0.12 }
+  ];
+
   for (let ch = 0; ch < impulse.numberOfChannels; ch++) {
     const data = impulse.getChannelData(ch);
+    // Diffuse reverb tail with gentle exponential decay
     for (let i = 0; i < length; i++) {
       const t = i / length;
-      // Exponential decay of noise for room-like tail
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * 0.5;
+    }
+    // Inject early reflections as discrete impulses with slight stereo spread
+    for (const ref of earlyReflections) {
+      const idx = Math.floor(ref.time * rate);
+      if (idx < length) {
+        const stereoOffset = ch === 0 ? 0 : Math.floor(0.001 * rate);
+        const pos = Math.min(idx + stereoOffset, length - 1);
+        data[pos] += ref.gain * (0.8 + Math.random() * 0.4);
+      }
     }
   }
   return impulse;
@@ -838,7 +863,6 @@ function tickJitter() {
 
 setInterval(tickJitter, 480);
 
-const SHOW_FRONT_BOTTOM_PANES = true;
 
 const clarinetBaseNote = 'G4';
 
@@ -867,14 +891,14 @@ async function ensureAudioStarted() {
 const dots = [];
 let dotIdCounter = 0;
 
-// Preload the clarinet sample for faster voice creation
+// Preload the base sample for faster voice creation
 let clarinetBuffer = null;
-const clarinetSamplePath = 'assets/sounds/Clarinet_G.wav';
+const clarinetSamplePath = 'assets/sounds/Cello_C3.wav';
 
 async function loadClarinetSample() {
   if (clarinetBuffer) return clarinetBuffer;
   clarinetBuffer = await Tone.Buffer.fromUrl(clarinetSamplePath);
-  console.log('Clarinet sample loaded');
+  console.log('Cello sample loaded');
   return clarinetBuffer;
 }
 
@@ -882,118 +906,224 @@ async function loadClarinetSample() {
 loadClarinetSample().catch(err => console.error('Failed to load clarinet sample:', err));
 
 function createDotVoice(dot) {
-  const output = new Tone.Gain(0.7);
+  const output = new Tone.Gain(0.65);
   output.connect(masterBus);
 
-  const reverbSend = new Tone.Gain(0.16);
+  const reverbSend = new Tone.Gain(0.18);
   output.connect(reverbSend);
   reverbSend.connect(reverb);
 
-  // --- SAMPLE PLAYER (replaces oscillators) ---
-  // The clarinet sample is the pure base sound at position (0,0,0)
+  // ================================================================
+  // SOURCE LAYER: Clarinet sample + asymmetric detuned copies
+  // ================================================================
+
+  // Primary sample — the clean, centered tone
   const samplePlayer = new Tone.Player({
     url: clarinetBuffer || clarinetSamplePath,
     loop: true,
     fadeIn: 0.05,
     fadeOut: 0.05
   });
-  const sampleGain = new Tone.Gain(0.9);
+  const sampleGain = new Tone.Gain(0.95);
   samplePlayer.connect(sampleGain);
 
-  // --- CHORUS for inharmonicity effect ---
-  // Chorus creates lush, organic detuning and beating when mixed with original
-  const chorus = new Tone.Chorus({
-    frequency: 1.5,
-    delayTime: 3.5,
-    depth: 0.7
-  }).start();
-  const chorusGain = new Tone.Gain(0); // Controlled by X axis
-  samplePlayer.connect(chorus);
-  chorus.connect(chorusGain);
+  // Detuned copy HIGH — asymmetric sharp (+7 to +45 cents)
+  // Asymmetric detuning mimics real inharmonicity (piano string stretch)
+  const detuneHiPlayer = new Tone.Player({
+    url: clarinetBuffer || clarinetSamplePath,
+    loop: true,
+    fadeIn: 0.05,
+    fadeOut: 0.05
+  });
+  const detuneHiGain = new Tone.Gain(0);
+  detuneHiPlayer.connect(detuneHiGain);
 
-  // --- NOISE for breath/noisiness ---
-  const noiseSource = new Tone.Noise('pink');
-  // AutoFilter adds organic motion to the breath noise instead of static hiss
-  const noiseFilter = new Tone.AutoFilter({
-    frequency: 2, // 2Hz flutter
-    baseFrequency: 2000,
-    octaves: 1.2,
-    filter: { type: 'bandpass', Q: 0.8 }
-  }).start();
-  const noiseGain = new Tone.Gain(0.05); // Slight breath
-  noiseSource.connect(noiseFilter);
-  noiseFilter.connect(noiseGain);
+  // Detuned copy LOW — asymmetric flat (-11 to -55 cents)
+  const detuneLoPlayer = new Tone.Player({
+    url: clarinetBuffer || clarinetSamplePath,
+    loop: true,
+    fadeIn: 0.05,
+    fadeOut: 0.05
+  });
+  const detuneLoGain = new Tone.Gain(0);
+  detuneLoPlayer.connect(detuneLoGain);
 
-  // Breath transient for a natural attack
-  const breathNoise = new Tone.Noise('white');
-  const breathFilter = new Tone.Filter({
+  // Ring modulator for metallic/bell character at extreme inharmonicity
+  // Multiplying sample with low-freq sine creates sum/difference tones
+  const ringModLFO = new Tone.Oscillator({ frequency: 2, type: 'sine' });
+  const ringModGain = new Tone.Gain(0); // Mix of ring-mod effect
+  const ringModMerge = new Tone.Gain(1);
+  samplePlayer.connect(ringModMerge);
+  ringModLFO.connect(ringModGain.gain); // AM modulation
+  ringModMerge.connect(ringModGain);
+  const ringModOut = new Tone.Gain(0); // Controls wet amount
+
+  // ================================================================
+  // BODY LAYER: Multi-band tilt EQ + formant filters
+  // ================================================================
+
+  // Gentle lowpass — much softer than before (-12 dB/oct, high knee)
+  const tiltLowpass = new Tone.Filter({
+    type: 'lowpass',
+    frequency: 8000,
+    Q: 0.5,
+    rolloff: -12
+  });
+
+  // 3-band tilt EQ for spectral slope shaping
+  const tiltEQ = new Tone.EQ3({
+    low: 0,
+    mid: 0,
+    high: 0,
+    lowFrequency: 300,
+    highFrequency: 3000
+  });
+
+  // Formant 1 — lower resonance (vowel body, ~500 Hz)
+  const formant1 = new Tone.Filter({
+    type: 'peaking',
+    frequency: 500,
+    Q: 2.0,
+    gain: 3
+  });
+
+  // Formant 2 — upper resonance (vowel character, ~1500 Hz)
+  const formant2 = new Tone.Filter({
+    type: 'peaking',
+    frequency: 1500,
+    Q: 2.0,
+    gain: 2
+  });
+
+  // Warm saturation — Chebyshev harmonics for tube warmth
+  const saturator = new Tone.Chebyshev(2);
+  saturator.wet.value = 0.25;
+
+  // ================================================================
+  // VIBRATO + TREMOLO: Musical micro-fluctuations
+  // ================================================================
+
+  // Vibrato — pitch LFO (~5.5 Hz, depth controlled by position)
+  const vibratoLFO = new Tone.LFO({
+    frequency: 5.5,
+    min: -8,
+    max: 8,
+    type: 'sine'
+  });
+
+  // Tremolo — amplitude LFO (~3.5 Hz, subtle)
+  const tremoloLFO = new Tone.LFO({
+    frequency: 3.5,
+    min: 0.88,
+    max: 1.0,
+    type: 'sine'
+  });
+  const tremoloGain = new Tone.Gain(1.0);
+  tremoloLFO.connect(tremoloGain.gain);
+
+  // ================================================================
+  // AIR LAYER: Shaped noise (breath + turbulence)
+  // ================================================================
+
+  // Breath noise — bandpass around harmonic partials for musical noise
+  const breathNoise = new Tone.Noise('pink');
+  const breathBP = new Tone.Filter({
+    type: 'bandpass',
+    frequency: 1200,  // Will track fundamental * 3–5
+    Q: 2.0
+  });
+  const breathGain = new Tone.Gain(0.02); // Very subtle at rest
+
+  // Air turbulence — wider band for broadband character
+  const airNoise = new Tone.Noise('white');
+  const airBP = new Tone.Filter({
+    type: 'bandpass',
+    frequency: 3000,
+    Q: 0.4
+  });
+  const airGain = new Tone.Gain(0);
+
+  // AutoFilter adds organic pulsing to the breath layer
+  const breathModulation = new Tone.AutoFilter({
+    frequency: 2.5,
+    baseFrequency: 1200,
+    octaves: 0.8,
+    filter: { type: 'bandpass', Q: 1.0 }
+  }).start();
+
+  breathNoise.connect(breathModulation);
+  breathModulation.connect(breathBP);
+  breathBP.connect(breathGain);
+
+  airNoise.connect(airBP);
+  airBP.connect(airGain);
+
+  // Breath transient envelope for natural attack puff
+  const breathEnv = new Tone.Envelope({
+    attack: 0.01,
+    decay: 0.18,
+    sustain: 0,
+    release: 0.08
+  });
+  const breathTransientGain = new Tone.Gain(0);
+  breathEnv.connect(breathTransientGain.gain);
+  const breathTransientNoise = new Tone.Noise('white');
+  const breathTransientBP = new Tone.Filter({
     type: 'bandpass',
     frequency: 1400,
     Q: 1.4
   });
-  const breathGain = new Tone.Gain(0);
-  const breathEnv = new Tone.Envelope({
-    attack: 0.01,
-    decay: 0.16,
-    sustain: 0,
-    release: 0.08
-  });
-  breathNoise.connect(breathFilter);
-  breathFilter.connect(breathGain);
-  breathEnv.connect(breathGain.gain);
-
-  // --- FILTER for spectral centroid ---
-  const centroidFilter = new Tone.Filter({
-    type: 'lowpass',
-    frequency: 3500,
-    Q: 0.5,
-    rolloff: -24
-  });
-
-  // High shelf EQ
-  const highShelf = new Tone.EQ3({
-    low: 1,
-    mid: 0,
-    high: -1.0,
-    lowFrequency: 280,
-    highFrequency: 2400
-  });
-
-  // Gentle body resonance for naturalness
-  const bodyBell = new Tone.Filter({
-    type: 'peaking',
-    frequency: 1850,
-    Q: 1.1,
-    gain: 2
-  });
-
-  // Warm tube-like harmonics to glue components logically without digital harshness
-  const saturator = new Tone.Chebyshev(2);
-  saturator.wet.value = 0.3; // subtle mix
+  breathTransientNoise.connect(breathTransientBP);
+  breathTransientBP.connect(breathTransientGain);
 
   // Main amplitude envelope
   const ampEnv = new Tone.AmplitudeEnvelope({
-    attack: 0.16,
-    decay: 0.25,
-    sustain: 0.88,
-    release: 1.2
+    attack: 0.18,
+    decay: 0.3,
+    sustain: 0.85,
+    release: 1.4
   });
 
-  // Signal routing: sample/noise -> filter -> EQ -> envelope -> output
-  sampleGain.connect(centroidFilter);
-  chorusGain.connect(centroidFilter);
-  noiseGain.connect(centroidFilter);
-  breathGain.connect(centroidFilter);
-  centroidFilter.connect(highShelf);
-  highShelf.connect(bodyBell);
-  bodyBell.connect(saturator);
-  saturator.connect(ampEnv);
+  // ================================================================
+  // SIGNAL ROUTING
+  // ================================================================
+  // Source -> Body -> Tremolo -> Envelope -> Output
+
+  // Source merge point
+  const sourceBus = new Tone.Gain(1);
+  sampleGain.connect(sourceBus);
+  detuneHiGain.connect(sourceBus);
+  detuneLoGain.connect(sourceBus);
+  ringModOut.connect(sourceBus);
+
+  // Noise merge point
+  const noiseBus = new Tone.Gain(1);
+  breathGain.connect(noiseBus);
+  airGain.connect(noiseBus);
+  breathTransientGain.connect(noiseBus);
+
+  // Source + Noise -> Body filters
+  sourceBus.connect(tiltLowpass);
+  noiseBus.connect(tiltLowpass);
+
+  tiltLowpass.connect(tiltEQ);
+  tiltEQ.connect(formant1);
+  formant1.connect(formant2);
+  formant2.connect(saturator);
+  saturator.connect(tremoloGain);
+  tremoloGain.connect(ampEnv);
   ampEnv.connect(output);
 
-  // Start sample and noise
+  // Start everything
   samplePlayer.start();
-  noiseSource.start();
+  detuneHiPlayer.start();
+  detuneLoPlayer.start();
+  ringModLFO.start();
+  vibratoLFO.start();
+  tremoloLFO.start();
   breathNoise.start();
+  airNoise.start();
+  breathTransientNoise.start();
 
   // Trigger envelope
   ampEnv.triggerAttack();
@@ -1002,21 +1132,42 @@ function createDotVoice(dot) {
     output,
     reverbSend,
     ampEnv,
+    // Source
     samplePlayer,
     sampleGain,
-    chorus,
-    chorusGain,
-    noiseSource,
-    noiseFilter,
-    noiseGain,
-    breathNoise,
-    breathFilter,
-    breathGain,
-    breathEnv,
-    centroidFilter,
-    highShelf,
-    bodyBell,
+    detuneHiPlayer,
+    detuneHiGain,
+    detuneLoPlayer,
+    detuneLoGain,
+    ringModLFO,
+    ringModGain,
+    ringModMerge,
+    ringModOut,
+    // Body
+    tiltLowpass,
+    tiltEQ,
+    formant1,
+    formant2,
     saturator,
+    // Modulation
+    vibratoLFO,
+    tremoloLFO,
+    tremoloGain,
+    // Air
+    breathNoise,
+    breathBP,
+    breathGain,
+    breathModulation,
+    airNoise,
+    airBP,
+    airGain,
+    breathTransientNoise,
+    breathTransientBP,
+    breathTransientGain,
+    breathEnv,
+    // Buses
+    sourceBus,
+    noiseBus,
     disposing: false
   };
   dot.voice = voice;
@@ -1036,68 +1187,140 @@ function updateDotAudio(dot) {
   const rawY = THREE.MathUtils.clamp(dot.y, 0, 1);
   const rawZ = THREE.MathUtils.clamp(dot.z, 0, 1);
 
-  // One-sided mappings: 0 = pure/clean/dark, 1 = rough/noisy/bright
-  const inharmonicity = rawX;      // 0 to 1
-  const spectralCentroid = rawY;   // 0 (dark) to 1 (bright)
-  const noisiness = rawZ;          // 0 (clean) to 1 (noisy)
+  const inharmonicity = rawX;      // 0 = pure, 1 = stretched/metallic
+  const spectralCentroid = rawY;   // 0 = dark/warm, 1 = bright/brilliant
+  const noisiness = rawZ;          // 0 = clean, 1 = breathy/turbulent
 
-  // === INHARMONICITY (X axis) ===
-  // At 0: pure clarinet sample only
-  // At 1: mix in chorus version for organic detuning/beating
-  const sampleLevel = THREE.MathUtils.lerp(0.97, 0.6, inharmonicity * 0.8);
-  voice.sampleGain.gain.linearRampTo(inharmonicity < 0.02
-    ? 0.99
-    : sampleLevel, 0.12);
+  // ================================================================
+  // X-AXIS: INHARMONICITY — Asymmetric detuned copies + ring mod
+  // ================================================================
 
-  const chorusLevel = THREE.MathUtils.lerp(0, 0.6, inharmonicity);
-  voice.chorusGain.gain.linearRampTo(inharmonicity < 0.02
-    ? 0
-    : chorusLevel, 0.12);
+  // Primary sample fades down as detuned copies enter
+  const primaryLevel = THREE.MathUtils.lerp(0.95, 0.45, inharmonicity);
+  voice.sampleGain.gain.linearRampTo(primaryLevel, 0.12);
 
-  // Chorus depth/rate ramps with inharmonicity for more chaos at extremes
-  const chorusDepth = THREE.MathUtils.lerp(0.4, 1.0, inharmonicity);
-  const chorusFreq = THREE.MathUtils.lerp(1.5, 4.0, inharmonicity);
-  voice.chorus.depth = chorusDepth;
-  voice.chorus.frequency.value = chorusFreq;
+  // Detuned copies fade in with increasing inharmonicity
+  const detuneLevel = THREE.MathUtils.lerp(0, 0.40, Math.pow(inharmonicity, 0.7));
+  voice.detuneHiGain.gain.linearRampTo(detuneLevel, 0.12);
+  voice.detuneLoGain.gain.linearRampTo(detuneLevel * 0.85, 0.12); // Slightly quieter low copy
 
-  // === SPECTRAL CENTROID (Y axis) ===
-  const minCutoff = 700;
-  const maxCutoff = 13500;
+  // Asymmetric detuning amounts (cents) — sharps spread more than flats
+  const detuneHiCents = THREE.MathUtils.lerp(7, 45, inharmonicity);
+  const detuneLoCents = THREE.MathUtils.lerp(-11, -55, inharmonicity);
+  voice.detuneHiPlayer.playbackRate = Math.pow(2, (detuneHiCents + jitterState.detune) / 1200);
+  voice.detuneLoPlayer.playbackRate = Math.pow(2, (detuneLoCents - jitterState.detune * 0.7) / 1200);
 
-  // Perceptual-ish curve (pow) instead of strictly linear
+  // Ring modulator for metallic/bell quality at high inharmonicity
+  const ringModAmount = THREE.MathUtils.clamp(Math.pow(inharmonicity - 0.5, 2) * 1.6, 0, 0.35);
+  voice.ringModOut.gain.linearRampTo(ringModAmount, 0.15);
+  // Ring mod frequency creates different beating patterns
+  const ringFreq = THREE.MathUtils.lerp(0.5, 8, inharmonicity);
+  voice.ringModLFO.frequency.linearRampTo(ringFreq, 0.15);
+
+  // ================================================================
+  // Y-AXIS: SPECTRAL CENTROID — Multi-band tilt + formant shift
+  // ================================================================
+
   const yPerceptual = Math.pow(spectralCentroid, 0.6);
-  const cutoffBase = THREE.MathUtils.lerp(minCutoff, maxCutoff, yPerceptual);
 
-  const cutoffFreq = THREE.MathUtils.clamp(cutoffBase + jitterState.shared, 500, 14500);
-  voice.centroidFilter.frequency.linearRampTo(cutoffFreq, 0.1);
+  // Lowpass — floor is 4500 Hz (preserves cello character even at dark end)
+  const lpFreq = THREE.MathUtils.lerp(4500, 16000, yPerceptual);
+  voice.tiltLowpass.frequency.linearRampTo(
+    THREE.MathUtils.clamp(lpFreq + jitterState.shared * 0.5, 3500, 17000), 0.1
+  );
 
-  const filterQ = THREE.MathUtils.clamp(0.8 + spectralCentroid * 1.1, 0.3, 1.9);
-  voice.centroidFilter.Q.linearRampTo(filterQ, 0.1);
+  // 3-band tilt: dark = warm (subtle), bright = crisp treble-forward
+  const lowTilt = THREE.MathUtils.lerp(4, -3, yPerceptual);      // +4 dB warm -> -3 dB thin
+  const midTilt = THREE.MathUtils.lerp(-1, 1, yPerceptual);      // slight mid scoop -> mid presence
+  const highTilt = THREE.MathUtils.lerp(-5, 6, yPerceptual);     // -5 dB darker -> +6 dB brilliant
+  voice.tiltEQ.low.linearRampTo(lowTilt, 0.1);
+  voice.tiltEQ.mid.linearRampTo(midTilt, 0.1);
+  voice.tiltEQ.high.linearRampTo(highTilt, 0.1);
 
-  const highBoost = (spectralCentroid - 0.5) * 8; // softer and centered tilt
-  voice.highShelf.high.linearRampTo(highBoost, 0.1);
+  // Formant filters shift upward with brightness (smaller cavity simulation)
+  const f1Freq = THREE.MathUtils.lerp(400, 900, yPerceptual);
+  const f2Freq = THREE.MathUtils.lerp(1200, 2800, yPerceptual);
+  const f1Gain = THREE.MathUtils.lerp(3, 1.5, yPerceptual);     // Moderate formant when dark
+  const f2Gain = THREE.MathUtils.lerp(1.5, 3.5, yPerceptual);   // Stronger upper formant when bright
+  voice.formant1.frequency.linearRampTo(f1Freq, 0.1);
+  voice.formant2.frequency.linearRampTo(f2Freq, 0.1);
+  voice.formant1.gain.linearRampTo(f1Gain, 0.1);
+  voice.formant2.gain.linearRampTo(f2Gain, 0.1);
 
-  // Keep noise aligned with the same spectral tilt for one-source perception
-  const noiseFreqBase = THREE.MathUtils.lerp(600, 8000, yPerceptual);
-  const noiseFreq = THREE.MathUtils.clamp(noiseFreqBase + jitterState.shared * 0.35, 400, 9000);
-  voice.noiseFilter.baseFrequency = noiseFreq; // AutoFilter uses baseFrequency
+  // Saturation — subtle warmth at dark end, minimal at bright
+  const satWet = THREE.MathUtils.lerp(0.20, 0.05, yPerceptual);
+  voice.saturator.wet.linearRampTo(satWet, 0.12);
 
-  // === NOISINESS (Z axis) ===
-  const noiseLevel = THREE.MathUtils.clamp(0.01 + 0.45 * Math.pow(noisiness, 0.8) + jitterState.shared / 9000, 0.001, 0.55);
-  voice.noiseGain.gain.linearRampTo(noiseLevel, 0.1);
+  // ================================================================
+  // Z-AXIS: NOISINESS — Shaped breath + air turbulence
+  // ================================================================
 
-  const noiseQ = THREE.MathUtils.clamp(1.2 - noisiness * 0.8, 0.35, 2.0);
-  voice.noiseFilter.filter.Q.value = noiseQ; // Safely set Q on inner filter without ramp errors
+  // Breath noise (musical, formant-tracking)
+  // At origin (noisiness=0) this is completely silent
+  const breathLevel = THREE.MathUtils.lerp(0, 0.25, Math.pow(noisiness, 0.6));
+  voice.breathGain.gain.linearRampTo(
+    THREE.MathUtils.clamp(breathLevel + jitterState.shared / 12000, 0, 0.35), 0.1
+  );
 
-  // Modulate breath frequency speed with noisiness
-  const breathRate = THREE.MathUtils.lerp(0.5, 5.0, noisiness); // 0.5Hz to 5Hz flutter
-  voice.noiseFilter.frequency.value = breathRate;
+  // Breath bandpass tracks spectral centroid for cohesive timbre
+  const breathFreq = THREE.MathUtils.lerp(800, 4000, yPerceptual);
+  voice.breathBP.frequency.linearRampTo(breathFreq, 0.1);
 
-  // === CROSS-PARAMETER INTERACTIONS ===
-  const reverbAmount = Math.min(0.28, 0.15 + spectralCentroid * 0.08 + noisiness * 0.10);
+  // Breath Q narrows at low noisiness (more tonal), widens at high (more airy)
+  const breathQ = THREE.MathUtils.lerp(3.0, 0.8, noisiness);
+  voice.breathBP.Q.linearRampTo(breathQ, 0.1);
+
+  // Air turbulence fades in at higher noisiness
+  const airLevel = THREE.MathUtils.lerp(0, 0.22, Math.pow(Math.max(0, noisiness - 0.2) / 0.8, 0.8));
+  voice.airGain.gain.linearRampTo(airLevel, 0.1);
+
+  // Air bandpass center follows spectral centroid
+  const airFreq = THREE.MathUtils.lerp(1500, 7000, yPerceptual);
+  voice.airBP.frequency.linearRampTo(airFreq, 0.1);
+
+  // Breath modulation rate increases with noisiness
+  const breathModRate = THREE.MathUtils.lerp(1.5, 6.0, noisiness);
+  voice.breathModulation.frequency.value = breathModRate;
+
+  // ================================================================
+  // MODULATION: Vibrato & tremolo scale with distance from origin
+  // At origin (0,0,0) there is NO modulation — pure cello sample
+  // ================================================================
+
+  const distFromOrigin = Math.sqrt(inharmonicity * inharmonicity + noisiness * noisiness);
+  const vibratoDepth = THREE.MathUtils.lerp(0, 18, Math.min(1, distFromOrigin));
+  voice.vibratoLFO.min = -vibratoDepth;
+  voice.vibratoLFO.max = vibratoDepth;
+
+  const tremoloDepth = THREE.MathUtils.lerp(1.0, 0.78, Math.min(1, distFromOrigin));
+  voice.tremoloLFO.min = tremoloDepth;
+
+  // ================================================================
+  // CROSS-AXIS INTERACTIONS
+  // ================================================================
+
+  // Reverb: more with brightness and noisiness (natural diffusion correlation)
+  const reverbAmount = THREE.MathUtils.clamp(
+    0.12 + spectralCentroid * 0.10 + noisiness * 0.12 + inharmonicity * 0.06,
+    0.10, 0.40
+  );
   voice.reverbSend.gain.linearRampTo(reverbAmount, 0.18);
 
-  // Update readouts (show 0-1 values for display)
+  // High inharmonicity + high brightness -> extra saturation for bell-like brilliance
+  if (inharmonicity > 0.5 && spectralCentroid > 0.5) {
+    const bellSat = 0.05 + (inharmonicity - 0.5) * (spectralCentroid - 0.5) * 0.6;
+    voice.saturator.wet.linearRampTo(Math.min(satWet + bellSat, 0.5), 0.15);
+  }
+
+  // Low brightness + high noisiness -> shift noise down for rumble (not hiss)
+  if (spectralCentroid < 0.4 && noisiness > 0.3) {
+    const rumbleShift = (0.4 - spectralCentroid) * (noisiness - 0.3) * 2;
+    const rumbleFreq = Math.max(200, breathFreq - rumbleShift * 2000);
+    voice.breathBP.frequency.linearRampTo(rumbleFreq, 0.12);
+    voice.airBP.frequency.linearRampTo(Math.max(400, airFreq - rumbleShift * 3000), 0.12);
+  }
+
+  // Update readouts
   updateDescriptorReadouts({
     centroid: rawY,
     noisiness: rawZ,
@@ -1120,40 +1343,60 @@ function disposeDotVoice(dot, immediate = false) {
   const releaseTail = immediate ? 0 : voice.ampEnv.release + 0.2;
 
   setTimeout(() => {
-    if (voice.samplePlayer) {
-      voice.samplePlayer.stop();
-      voice.samplePlayer.dispose();
-    }
-    if (voice.sampleGain) voice.sampleGain.dispose();
-    if (voice.chorus) {
-      voice.chorus.stop();
-      voice.chorus.dispose();
-    }
-    if (voice.chorusGain) voice.chorusGain.dispose();
+    // Helper to safely stop and dispose
+    const stopDispose = (node) => {
+      if (!node) return;
+      try { node.stop(); } catch (e) { /* may not be started */ }
+      try { node.dispose(); } catch (e) { /* may already be disposed */ }
+    };
+    const safeDispose = (node) => {
+      if (!node) return;
+      try { node.dispose(); } catch (e) { }
+    };
 
-    if (voice.noiseSource) {
-      voice.noiseSource.stop();
-      voice.noiseSource.dispose();
-    }
-    if (voice.noiseFilter) voice.noiseFilter.dispose();
-    if (voice.noiseGain) voice.noiseGain.dispose();
+    // Source layer
+    stopDispose(voice.samplePlayer);
+    safeDispose(voice.sampleGain);
+    stopDispose(voice.detuneHiPlayer);
+    safeDispose(voice.detuneHiGain);
+    stopDispose(voice.detuneLoPlayer);
+    safeDispose(voice.detuneLoGain);
+    stopDispose(voice.ringModLFO);
+    safeDispose(voice.ringModGain);
+    safeDispose(voice.ringModMerge);
+    safeDispose(voice.ringModOut);
 
-    if (voice.breathNoise) {
-      voice.breathNoise.stop();
-      voice.breathNoise.dispose();
-    }
-    if (voice.breathFilter) voice.breathFilter.dispose();
-    if (voice.breathGain) voice.breathGain.dispose();
-    if (voice.breathEnv) voice.breathEnv.dispose();
+    // Body layer
+    safeDispose(voice.tiltLowpass);
+    safeDispose(voice.tiltEQ);
+    safeDispose(voice.formant1);
+    safeDispose(voice.formant2);
+    safeDispose(voice.saturator);
 
-    if (voice.centroidFilter) voice.centroidFilter.dispose();
-    if (voice.highShelf) voice.highShelf.dispose();
-    if (voice.bodyBell) voice.bodyBell.dispose();
-    if (voice.saturator) voice.saturator.dispose();
+    // Modulation
+    stopDispose(voice.vibratoLFO);
+    stopDispose(voice.tremoloLFO);
+    safeDispose(voice.tremoloGain);
 
-    voice.ampEnv.dispose();
-    voice.output.dispose();
-    voice.reverbSend.dispose();
+    // Air layer
+    stopDispose(voice.breathNoise);
+    safeDispose(voice.breathBP);
+    safeDispose(voice.breathGain);
+    safeDispose(voice.breathModulation);
+    stopDispose(voice.airNoise);
+    safeDispose(voice.airBP);
+    safeDispose(voice.airGain);
+    stopDispose(voice.breathTransientNoise);
+    safeDispose(voice.breathTransientBP);
+    safeDispose(voice.breathTransientGain);
+    safeDispose(voice.breathEnv);
+
+    // Buses & output
+    safeDispose(voice.sourceBus);
+    safeDispose(voice.noiseBus);
+    safeDispose(voice.ampEnv);
+    safeDispose(voice.output);
+    safeDispose(voice.reverbSend);
   }, releaseTail * 1000);
 }
 
@@ -1165,8 +1408,9 @@ function restartDotVoice(dot) {
   createDotVoice(dot);
   updateDotAudio(dot);
 
+  // Trigger breath transient for natural onset
   if (dot.voice && dot.voice.breathEnv) {
-    dot.voice.breathEnv.triggerAttackRelease(0.22);
+    dot.voice.breathEnv.triggerAttackRelease(0.25);
   }
 }
 
@@ -1176,7 +1420,7 @@ async function setPlaying(state) {
 
   const btn = document.getElementById('play-pause');
   if (btn) {
-    btn.textContent = isPlaying ? 'Pause' : 'Play';
+    btn.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
   }
 
   if (!isPlaying) {

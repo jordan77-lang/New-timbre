@@ -4,28 +4,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Timbre Box Experiment</title>
+  <title>Timbre Cube</title>
   <link rel="stylesheet" href="style.css">
   <!-- Tone.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.js"></script>
   <!-- Three.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- GLTFLoader for loading .glb models -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <!-- FBXLoader for Hand Models -->
-  <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
-  <!-- VRButton helper -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/webxr/VRButton.js"></script>
-  <!-- Local Hand Tracking Polyfill (Vendored from Three.js r128 examples) -->
-  <script src="HandTracking.js"></script>
 </head>
 
 <body>
-  <h1>Timbre Box</h1>
-  <p id="info">Press Place Marker to spawn the cube at the center, then drag it to explore the timbre space. In VR, use
-    controllers or hand tracking.</p>
-  <div id="vr-button-container"></div>
+  <h1>Timbre Cube</h1>
+  <p id="info">Press Place Marker to spawn a dot at the center, then drag it to explore the timbre space.</p>
 
   <main class="main-container">
     <div id="container" tabindex="0" aria-label="3D timbre cube visualizer">
@@ -36,16 +25,25 @@
         aria-label="Spectrogram visualization of current timbre">Your browser does not support canvas. A spectrogram
         visualization of the current timbre would appear here.</canvas>
       <div class="spectro-readouts" aria-live="polite">
-        <div>Centroid: <span id="readout-centroid">--</span></div>
-        <div>Noisiness: <span id="readout-noisiness">--</span></div>
-        <div>Inharmonicity: <span id="readout-inharm">--</span></div>
+        <div>
+          <span class="readout-label">Centroid</span>
+          <span class="readout-value" id="readout-centroid">--</span>
+        </div>
+        <div>
+          <span class="readout-label">Noisiness</span>
+          <span class="readout-value" id="readout-noisiness">--</span>
+        </div>
+        <div>
+          <span class="readout-label">Inharmonicity</span>
+          <span class="readout-value" id="readout-inharm">--</span>
+        </div>
       </div>
       <div class="button-container">
-        <button id="play-pause">Pause</button>
-        <button id="place-marker">Place Marker</button>
-        <button id="clear">Clear</button>
-        <button id="download">Download</button>
-        <button id="reset-position">Reset Position</button>
+        <button id="play-pause">⏸ Pause</button>
+        <button id="place-marker">◉ Place Marker</button>
+        <button id="clear">✕ Clear Marker</button>
+        <button id="download">↓ Download</button>
+        <button id="reset-position">⟲ Reset Cube Position</button>
       </div>
     </div>
   </main>
