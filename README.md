@@ -2,7 +2,7 @@
 
 An interactive 3D timbre space explorer. Move a marker through a cube to morph a bowed cello sound in real time across three perceptual dimensions: **inharmonicity**, **spectral centroid** (brightness), and **noisiness**.
 
-**Live demo:** [https://jordan77-lang.github.io/New-timbre/docs/](https://jordan77-lang.github.io/New-timbre/docs/)
+**Live demo:** [[https://jordan77-lang.github.io/New-timbre/docs/]([https://jordan77-lang.github.io/New-timbre/docs/](https://jordan77-lang.github.io/New-timbre/))](https://jordan77-lang.github.io/New-timbre/)
 
 ---
 
